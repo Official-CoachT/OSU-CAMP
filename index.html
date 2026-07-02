@@ -59,13 +59,16 @@
   .attr-row { padding: 14px 18px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
   .attr-row:nth-child(even) { border-right: none; }
   .attr-row:nth-last-child(-n+2) { border-bottom: none; }
+  .attr-row.full-width { grid-column: 1 / -1; border-right: none; }
   .attr-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--blue3); margin-bottom: 6px; }
+  .attr-label.awareness { color: var(--navy); }
   .attr-input-row { display: flex; align-items: center; gap: 8px; }
   .attr-input { width: 64px; font-size: 22px; font-weight: 700; color: var(--navy); border: 2px solid var(--border); border-radius: 8px; padding: 6px 8px; text-align: center; -webkit-appearance: none; appearance: none; }
   .attr-input:focus { outline: none; border-color: var(--blue); background: var(--lighter); }
   .attr-bar-wrap { flex: 1; height: 8px; background: var(--gray); border-radius: 99px; overflow: hidden; }
   .attr-bar { height: 100%; border-radius: 99px; background: var(--blue3); transition: width 0.3s, background 0.3s; }
   .attr-bar.high { background: var(--navy); } .attr-bar.good { background: var(--blue); } .attr-bar.avg { background: var(--blue3); }
+  .attr-bar.awareness-bar { background: #ffd23f; }
   .save-btn { width: calc(100% - 36px); margin: 16px 18px; padding: 14px; background: var(--navy); color: white; font-size: 15px; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; letter-spacing: 0.04em; transition: background 0.2s; }
   .save-btn:active { background: var(--blue); }
   .save-btn:disabled { background: #aaa; cursor: not-allowed; }
@@ -79,6 +82,9 @@
   .scale-item { flex: 1; border-radius: 6px; padding: 6px 4px; text-align: center; }
   .scale-item .sr { font-size: 11px; font-weight: 700; } .scale-item .sl { font-size: 9px; margin-top: 1px; }
   .loading { text-align: center; color: rgba(255,255,255,0.6); padding: 32px; font-size: 14px; }
+  .awareness-banner { background: linear-gradient(135deg, var(--navy), var(--blue2)); padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); }
+  .awareness-banner .alabel { color: #ffd23f; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .awareness-banner .aweight { color: rgba(255,255,255,0.7); font-size: 11px; }
 </style>
 </head>
 <body>
@@ -141,18 +147,16 @@ const SB_KEY="sb_publishable_OupELBYZz-UVg9g4blJx-Q_ddzyleZs";
 const TABLE="osu_camp_ratings";
 const COACH_PW="EIFOSU2026";
 const PLAYERS=["Nick","Quinn","Axel","Henry","Max","Lucas","Lincoln","Addie","Addison","Adeline","Frances","Reegan","Joslyn","Jenna","Leni","Neveah","Rose","Henley","Reagan"];
-const ATTRS=["Pace","Dribbling","Passing","Shooting","Defending","Physical"];
-const WEIGHTS={Pace:0.15,Dribbling:0.20,Passing:0.20,Shooting:0.15,Defending:0.15,Physical:0.15};
-let db={};
-let sel=null;
-let unlocked=false;
+const ATTRS=["Pace","Dribbling","Passing","Shooting","Defending","Physical","Awareness"];
+const WEIGHTS={Pace:0.10,Dribbling:0.20,Passing:0.20,Shooting:0.10,Defending:0.15,Physical:0.05,Awareness:0.20};
+let db={};let sel=null;let unlocked=false;
 
 async function dbFetch(){
   try{
     const r=await fetch(`${SB_URL}/rest/v1/${TABLE}?select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
     const rows=await r.json();
     db={};
-    if(Array.isArray(rows)) rows.forEach(r=>{db[r.name]={pace:r.pace,dribbling:r.dribbling,passing:r.passing,shooting:r.shooting,defending:r.defending,physical:r.physical,ovr:r.ovr};});
+    if(Array.isArray(rows)) rows.forEach(r=>{db[r.name]={pace:r.pace,dribbling:r.dribbling,passing:r.passing,shooting:r.shooting,defending:r.defending,physical:r.physical,awareness:r.awareness,ovr:r.ovr};});
   }catch(e){console.error(e);}
 }
 
@@ -163,9 +167,12 @@ async function dbUpsert(name,data){
 function calcOVR(name){
   const r=db[name];
   if(!r) return null;
-  const vals=[r.pace,r.dribbling,r.passing,r.shooting,r.defending,r.physical];
+  const vals=[r.pace,r.dribbling,r.passing,r.shooting,r.defending,r.physical,r.awareness];
   if(vals.some(v=>!v)) return null;
-  return Math.round(r.pace*0.15+r.dribbling*0.20+r.passing*0.20+r.shooting*0.15+r.defending*0.15+r.physical*0.15);
+  return Math.round(
+    r.pace*0.10+r.dribbling*0.20+r.passing*0.20+
+    r.shooting*0.10+r.defending*0.15+r.physical*0.05+r.awareness*0.20
+  );
 }
 
 function ovrClass(v){if(v===null)return'dev';if(v>=90)return'high';if(v>=80)return'good';if(v>=70)return'avg';return'dev';}
@@ -184,7 +191,9 @@ function buildLeaderboard(){
     const sym=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`;
     const rc=i===0?'lb-rank gold':i===1?'lb-rank silver':i===2?'lb-rank bronze':'lb-rank';
     const r=db[p.name];
-    const astr=r&&p.ovr!==null?`PAC:${r.pace} · DRI:${r.dribbling} · PAS:${r.passing} · SHO:${r.shooting} · DEF:${r.defending} · PHY:${r.physical}`:'Not yet rated';
+    const astr=r&&p.ovr!==null
+      ?`PAC:${r.pace} · DRI:${r.dribbling} · PAS:${r.passing} · SHO:${r.shooting} · DEF:${r.defending} · PHY:${r.physical} · AWA:${r.awareness}`
+      :'Not yet rated';
     div.innerHTML=`<div class="${rc}">${sym}</div><div><div class="lb-name">${p.name}</div><div class="lb-attrs">${astr}</div></div><div><div class="lb-ovr ${ovrClass(p.ovr)}">${p.ovr!==null?p.ovr:'—'}</div><span class="lb-ovr-label">OVR</span></div>`;
     list.appendChild(div);
   });
@@ -216,14 +225,21 @@ function selectPlayer(name){
   const grid=document.getElementById('attr-grid');
   grid.innerHTML='';
   const r=db[name]||{};
-  ATTRS.forEach(attr=>{
+  ATTRS.forEach((attr,idx)=>{
     const key=attr.toLowerCase();
     const val=r[key]||'';
     const pct=val?(val/99*100):0;
-    const bc=val>=90?'attr-bar high':val>=80?'attr-bar good':'attr-bar avg';
+    const isAwareness=attr==='Awareness';
+    const barClass=isAwareness?'attr-bar awareness-bar':(val>=90?'attr-bar high':val>=80?'attr-bar good':'attr-bar avg');
     const div=document.createElement('div');
-    div.className='attr-row';
-    div.innerHTML=`<div class="attr-label">${attr}</div><div class="attr-input-row"><input class="attr-input" type="number" min="1" max="99" value="${val}" id="inp-${attr}" oninput="onAttr('${attr}')" placeholder="—"><div class="attr-bar-wrap"><div class="${bc}" id="bar-${attr}" style="width:${pct}%"></div></div></div>`;
+    // Awareness spans full width as last item (7th = odd, so needs full width)
+    div.className='attr-row'+(isAwareness?' full-width':'');
+    div.innerHTML=`
+      <div class="attr-label${isAwareness?' awareness':''}">${attr}${isAwareness?' ⭐ 20%':''}</div>
+      <div class="attr-input-row">
+        <input class="attr-input" type="number" min="1" max="99" value="${val}" id="inp-${attr}" oninput="onAttr('${attr}')" placeholder="—">
+        <div class="attr-bar-wrap"><div class="${barClass}" id="bar-${attr}" style="width:${pct}%"></div></div>
+      </div>`;
     grid.appendChild(div);
   });
   updateOVR();
@@ -237,7 +253,8 @@ function onAttr(attr){
   const pct=val/99*100;
   const bar=document.getElementById(`bar-${attr}`);
   bar.style.width=pct+'%';
-  bar.className=val>=90?'attr-bar high':val>=80?'attr-bar good':'attr-bar avg';
+  const isAwareness=attr==='Awareness';
+  bar.className=isAwareness?'attr-bar awareness-bar':(val>=90?'attr-bar high':val>=80?'attr-bar good':'attr-bar avg');
   updateOVR();
 }
 
@@ -252,7 +269,7 @@ async function saveRatings(){
   btn.disabled=true;btn.textContent='SAVING...';
   const r=db[sel]||{};
   const ovr=calcOVR(sel)||0;
-  await dbUpsert(sel,{pace:r.pace||0,dribbling:r.dribbling||0,passing:r.passing||0,shooting:r.shooting||0,defending:r.defending||0,physical:r.physical||0,ovr});
+  await dbUpsert(sel,{pace:r.pace||0,dribbling:r.dribbling||0,passing:r.passing||0,shooting:r.shooting||0,defending:r.defending||0,physical:r.physical||0,awareness:r.awareness||0,ovr});
   btn.disabled=false;btn.textContent='SAVE RATINGS';
   buildPlayerSelect();
   const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);
@@ -260,12 +277,20 @@ async function saveRatings(){
 
 function openModal(name){
   const ovr=calcOVR(name);const r=db[name]||{};
-  const rows=ATTRS.map(a=>{
+  const rows=ATTRS.map((a,i)=>{
     const k=a.toLowerCase();const v=r[k]||'—';const pct=r[k]?(r[k]/99*100):0;
-    const bc=r[k]>=90?'attr-bar high':r[k]>=80?'attr-bar good':'attr-bar avg';
-    return`<div class="attr-row"><div class="attr-label">${a}</div><div class="attr-input-row"><div style="width:64px;text-align:center;font-size:22px;font-weight:700;color:var(--navy);">${v}</div><div class="attr-bar-wrap"><div class="${bc}" style="width:${pct}%"></div></div></div></div>`;
+    const isA=a==='Awareness';
+    const bc=isA?'attr-bar awareness-bar':(r[k]>=90?'attr-bar high':r[k]>=80?'attr-bar good':'attr-bar avg');
+    const fw=isA?' style="grid-column:1/-1;border-right:none;"':'';
+    return`<div class="attr-row"${fw}><div class="attr-label${isA?' awareness':''}">${a}${isA?' ⭐':''}</div><div class="attr-input-row"><div style="width:64px;text-align:center;font-size:22px;font-weight:700;color:var(--navy);">${v}</div><div class="attr-bar-wrap"><div class="${bc}" style="width:${pct}%"></div></div></div></div>`;
   }).join('');
-  document.getElementById('modal-body').innerHTML=`<div class="card-header" style="border-radius:0;"><div class="card-name">${name}</div><div class="card-ovr-box"><div class="card-ovr-num">${ovr!==null?ovr:'—'}</div><div class="card-ovr-label">OVR</div></div></div><div class="attr-grid">${rows}</div><div style="height:16px;"></div>`;
+  document.getElementById('modal-body').innerHTML=`
+    <div class="card-header" style="border-radius:0;">
+      <div class="card-name">${name}</div>
+      <div class="card-ovr-box"><div class="card-ovr-num">${ovr!==null?ovr:'—'}</div><div class="card-ovr-label">OVR</div></div>
+    </div>
+    <div class="attr-grid">${rows}</div>
+    <div style="height:16px;"></div>`;
   document.getElementById('modal').classList.add('open');
 }
 
